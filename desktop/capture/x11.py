@@ -8,7 +8,7 @@ import cv2
 import mss
 import numpy as np
 
-from .base import CaptureFrame, ScreenCapturer
+from capture.base import CaptureFrame, ScreenCapturer
 
 
 class X11Capturer(ScreenCapturer):

@@ -1,7 +1,7 @@
 """Screen capture backends (X11 + Wayland)."""
 
-from .base import ScreenCapturer, CaptureFrame
-from .factory import create_capturer, detect_session
+from capture.base import ScreenCapturer, CaptureFrame
+from capture.factory import create_capturer, detect_session
 
 __all__ = [
     "ScreenCapturer",

@@ -1,3 +1,3 @@
-from .peer import ScreenVideoTrack, WebRTCHost
+from webrtc.peer import ScreenVideoTrack, WebRTCHost
 
 __all__ = ["WebRTCHost", "ScreenVideoTrack"]

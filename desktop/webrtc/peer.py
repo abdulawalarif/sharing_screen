@@ -18,8 +18,8 @@ from aiortc import (
 )
 from aiortc.rtcrtpsender import RTCRtpSender
 
-from ..capture.base import ScreenCapturer
-from ..config import StreamConfig
+from capture.base import ScreenCapturer
+from config import StreamConfig
 
 logger = logging.getLogger(__name__)
 
@@ -77,28 +77,9 @@ class WebRTCHost:
         self._track: ScreenVideoTrack | None = None
         self._connected = asyncio.Event()
         self._codec_prefs = None
-
-        @self._pc.on("icecandidate")
-        async def on_icecandidate(candidate) -> None:  # type: ignore[no-untyped-def]
-            if candidate is None:
-                await self._on_ice(
-                    {
-                        "type": "ice",
-                        "candidate": None,
-                        "sdpMid": None,
-                        "sdpMLineIndex": None,
-                    }
-                )
-                return
-            cand_sdp = candidate.to_sdp() if hasattr(candidate, "to_sdp") else str(candidate)
-            await self._on_ice(
-                {
-                    "type": "ice",
-                    "candidate": cand_sdp,
-                    "sdpMid": candidate.sdpMid,
-                    "sdpMLineIndex": candidate.sdpMLineIndex,
-                }
-            )
+        # aiortc gathers ICE during setLocalDescription and embeds candidates in
+        # the SDP (non-trickle). Viewer trickle candidates are still accepted via
+        # add_ice().
 
         @self._pc.on("connectionstatechange")
         async def on_state() -> None:
@@ -142,7 +123,14 @@ class WebRTCHost:
         from aiortc.sdp import candidate_from_sdp
 
         try:
-            ice = candidate_from_sdp(candidate)
+            line = candidate.strip()
+            if line.startswith("a="):
+                line = line[2:]
+            if line.startswith("candidate:"):
+                # candidate_from_sdp accepts with or without the prefix depending
+                # on aiortc version; normalize to the form without "a=".
+                pass
+            ice = candidate_from_sdp(line)
             ice.sdpMid = sdp_mid
             ice.sdpMLineIndex = sdp_mline_index
             await self._pc.addIceCandidate(ice)
@@ -179,6 +167,6 @@ class WebRTCHost:
             if params.encodings:
                 params.encodings[0].maxBitrate = self._stream.max_bitrate_bps
                 params.encodings[0].maxFramerate = float(self._stream.fps)
-                await sender.setParameters(params)
+                sender.setParameters(params)
         except Exception:  # noqa: BLE001
             logger.debug("Could not set sender bitrate parameters", exc_info=True)

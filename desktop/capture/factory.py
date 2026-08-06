@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 import os
 
-from ..config import StreamConfig
-from .base import ScreenCapturer
-from .x11 import X11Capturer
+from config import StreamConfig
+from capture.base import ScreenCapturer
+from capture.x11 import X11Capturer
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +29,23 @@ def create_capturer(stream: StreamConfig, force: str | None = None) -> ScreenCap
     logger.info("Creating capturer for session=%s target=%sx%s@%sfps", kind, stream.width, stream.height, stream.fps)
 
     if kind == "wayland":
-        from .wayland import WaylandCapturer, wayland_available
+        from capture.wayland import WaylandCapturer, wayland_available
 
-        if not wayland_available():
+        if wayland_available():
+            return WaylandCapturer(stream.width, stream.height, stream.fps)
+
+        logger.warning(
+            "Wayland detected but GStreamer/PipeWire GI bindings are missing; "
+            "falling back to X11/mss (may be limited under Wayland). "
+            "For proper Wayland capture install: python3-gi gir1.2-gstreamer-1.0 "
+            "gstreamer1.0-plugins-base gstreamer1.0-pipewire xdg-desktop-portal"
+        )
+        if not os.environ.get("DISPLAY"):
             raise RuntimeError(
-                "Wayland detected but GStreamer/PipeWire bindings are missing. "
-                "Install: python3-gi gir1.2-gstreamer-1.0 gstreamer1.0-pipewire "
-                "xdg-desktop-portal (and a backend such as xdg-desktop-portal-gnome/kde/wlr)."
+                "Wayland capture unavailable and no DISPLAY for X11 fallback. "
+                "Install GStreamer portal packages or run an X11 session."
             )
-        return WaylandCapturer(stream.width, stream.height, stream.fps)
+        return X11Capturer(stream.width, stream.height, stream.fps)
 
     if kind in {"x11", "unknown"}:
         if kind == "unknown":
