@@ -13,14 +13,16 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final _hostController = TextEditingController(text: '192.168.1.1');
+  final _hostController = TextEditingController(text: '192.168.1.101');
   final _portController = TextEditingController(text: '8080');
   bool _useAdb = false;
   ViewerSession? _session;
   bool _busy = false;
+  bool _immersive = false;
 
   @override
   void dispose() {
+    _leaveImmersive();
     _session?.dispose();
     _hostController.dispose();
     _portController.dispose();
@@ -34,6 +36,29 @@ class _HomePageState extends State<HomePage> {
     return 'ws://${_hostController.text.trim()}:${_portController.text.trim()}/ws';
   }
 
+  Future<void> _enterImmersive() async {
+    if (_immersive) return;
+    _immersive = true;
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  Future<void> _leaveImmersive() async {
+    if (!_immersive && !mounted) {
+      // Still restore UI when disposing.
+    }
+    _immersive = false;
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
   Future<void> _toggleConnect() async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -44,6 +69,7 @@ class _HomePageState extends State<HomePage> {
           existing.status != ViewerStatus.error) {
         await existing.disconnect();
         existing.dispose();
+        await _leaveImmersive();
         setState(() => _session = null);
         return;
       }
@@ -60,6 +86,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onSessionUpdate() {
+    final session = _session;
+    if (session == null) return;
+    if (session.status == ViewerStatus.connected) {
+      _enterImmersive();
+    } else if (session.status == ViewerStatus.disconnected ||
+        session.status == ViewerStatus.error) {
+      _leaveImmersive();
+    }
     if (mounted) setState(() {});
   }
 
@@ -71,11 +105,18 @@ class _HomePageState extends State<HomePage> {
         session.status != ViewerStatus.disconnected;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0E1116),
-      body: SafeArea(
-        child: connected
-            ? _FullscreenViewer(session: session!)
-            : _ConnectPanel(
+      backgroundColor: Colors.black,
+      body: connected
+          ? _FullscreenViewer(
+              session: session!,
+              onDisconnect: () async {
+                await session.disconnect();
+                await _leaveImmersive();
+                if (mounted) setState(() {});
+              },
+            )
+          : SafeArea(
+              child: _ConnectPanel(
                 hostController: _hostController,
                 portController: _portController,
                 useAdb: _useAdb,
@@ -86,7 +127,7 @@ class _HomePageState extends State<HomePage> {
                 signalingUrl: _signalingUrl,
                 onToggle: _toggleConnect,
               ),
-      ),
+            ),
     );
   }
 }
@@ -227,34 +268,60 @@ class _ConnectPanel extends StatelessWidget {
 }
 
 class _FullscreenViewer extends StatelessWidget {
-  const _FullscreenViewer({required this.session});
+  const _FullscreenViewer({
+    required this.session,
+    required this.onDisconnect,
+  });
 
   final ViewerSession session;
+  final Future<void> Function() onDisconnect;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
       children: [
-        ColoredBox(
-          color: Colors.black,
-          child: RTCVideoView(
-            session.remoteRenderer,
-            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+        // Pinch-zoom / pan so landscape desktop content stays readable.
+        InteractiveViewer(
+          minScale: 1,
+          maxScale: 4,
+          boundaryMargin: const EdgeInsets.all(48),
+          child: SizedBox.expand(
+            child: RTCVideoView(
+              session.remoteRenderer,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+              mirror: false,
+            ),
           ),
         ),
         Positioned(
           left: 12,
           top: 12,
-          child: StatsOverlay(session: session),
+          child: SafeArea(
+            child: StatsOverlay(session: session),
+          ),
         ),
         Positioned(
           right: 12,
           top: 8,
-          child: IconButton.filledTonal(
-            tooltip: 'Disconnect',
-            onPressed: () => session.disconnect(),
-            icon: const Icon(Icons.close),
+          child: SafeArea(
+            child: IconButton.filledTonal(
+              tooltip: 'Disconnect',
+              onPressed: () => onDisconnect(),
+              icon: const Icon(Icons.close),
+            ),
+          ),
+        ),
+        const Positioned(
+          left: 0,
+          right: 0,
+          bottom: 16,
+          child: IgnorePointer(
+            child: Text(
+              'Pinch to zoom · drag to pan',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
           ),
         ),
       ],

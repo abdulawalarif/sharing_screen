@@ -132,6 +132,8 @@ python main.py
 
 
 # After running the app into the android 
+
+## optionally I can turn the witch and connect auto:
 1. adb reverse tcp:8080 tcp:8080
 2. set the UR: in the android screen : 127.0.0.1
 
