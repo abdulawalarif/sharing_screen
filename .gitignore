@@ -23,6 +23,11 @@ flutter_app/**/flutter_export_environment.sh
 *.log
 .vscode/
 
+# Secrets
+.env
+.env.*
+!.env.example
+
 # Misc
 *.class
 *.swp

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Screen Share Host
+Comment=Start Ubuntu→Android screen share (ADB reverse + WebRTC host)
+Exec=gnome-terminal --title=ScreenShareHost -- bash -lc 'cd "$(dirname "$(readlink -f %k)")" && exec ./start_host_terminal.sh'
+Icon=preferences-desktop-display
+Terminal=false
+Categories=Utility;
+StartupNotify=true

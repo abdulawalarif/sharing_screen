@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../defaults.dart';
 import '../webrtc/viewer_session.dart';
 import 'stats_overlay.dart';
 
@@ -13,8 +14,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final _hostController = TextEditingController(text: '192.168.1.101');
-  final _portController = TextEditingController(text: '8080');
+  final _hostController = TextEditingController();
+  final _portController = TextEditingController(text: '$kDefaultSignalingPort');
   bool _useAdb = false;
   ViewerSession? _session;
   bool _busy = false;
@@ -30,10 +31,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   String get _signalingUrl {
-    if (_useAdb) {
-      return 'ws://127.0.0.1:${_portController.text.trim()}/ws';
-    }
-    return 'ws://${_hostController.text.trim()}:${_portController.text.trim()}/ws';
+    final port = _portController.text.trim();
+    final host = _useAdb ? '127.0.0.1' : _hostController.text.trim();
+    return 'ws://$host:$port$kDefaultWsPath';
   }
 
   Future<void> _enterImmersive() async {
